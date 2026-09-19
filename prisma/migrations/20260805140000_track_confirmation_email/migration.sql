@@ -1,0 +1,11 @@
+-- Records whether the confirmation email actually reached the customer.
+--
+-- Without it, a failed send was unrecoverable: the Stripe webhook confirmed the
+-- booking, the email threw, the route returned 500, Stripe retried, and the
+-- retry found the booking already CONFIRMED — so confirmBookingPayment returned
+-- null, no email was sent, and the customer was never told about the
+-- appointment they had just paid for.
+--
+-- Nullable and defaulting to NULL: existing bookings are treated as not-yet
+-- emailed, which is harmless because nothing re-sends for them.
+ALTER TABLE "Booking" ADD COLUMN "confirmationEmailSentAt" TIMESTAMP(3);

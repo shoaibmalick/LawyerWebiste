@@ -1,0 +1,592 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Availability for a config-defined service (see config/content/services.ts).
+// serviceSlug is a plain string, not a foreign key: services are agency-authored
+// content, not database rows (see CLAUDE.md "Conventions").
+// A unit of the business's own time, not of a service.
+//
+// A slot used to carry a serviceSlug, which meant one row per (service, time)
+// and capacity counted per row — so a single 9am opening existed once per
+// service and could be booked by that many customers at once. Which service a
+// customer wants is their choice at booking time and now lives on Booking.
+model AvailabilitySlot {
+  id       String   @id @default(cuid())
+  startsAt DateTime @unique
+  endsAt   DateTime
+  // Concurrent appointments this business can run — chairs, rooms, staff.
+  // 1 for a single-operatory practice.
+  capacity Int      @default(1)
+
+  // True only for a slot staff conjured on a call, to fit someone in
+  // outside published availability (bookingService::rescheduleBooking, override
+  // path). It exists so the opening can be *unmade*: when the last holding
+  // booking leaves it, the slot is deleted rather than left behind as a
+  // publicly bookable Sunday-evening appointment nobody meant to offer.
+  createdByOverride Boolean @default(false)
+
+  bookings Booking[]
+
+  @@index([startsAt])
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  // A booking made on the website. The business calls the customer and confirms
+  // it; until then it is a request, not an appointment.
+  //
+  // It HOLDS the slot's capacity — see CAPACITY_HOLDING_STATUSES in
+  // server/services/bookingService.ts. A single-operator business runs one
+  // slot at a time, and a request nobody has called about yet must not be sold
+  // underneath the person working through the list.
+  //
+  // Declared LAST on purpose, exactly as ReviewStatus.HIDDEN is:
+  // `ALTER TYPE … ADD VALUE` appends, so this order must match the database's
+  // enumsortorder or a later `migrate dev` reports phantom drift.
+  REQUESTED
+}
+
+enum BookingNoteOutcome {
+  SPOKE_TO_PATIENT
+  NO_ANSWER
+  LEFT_MESSAGE
+  // Not a call at all — something worth recording against the appointment.
+  NOTE
+}
+
+// What was said when staff called. One row per call or note.
+//
+// Deliberately both structured and free: `outcome` is what the follow-up view
+// can count and sort on, `body` is what a human actually reads. Authorship is
+// recorded by email plus a denormalised name, with no FK to AdminUser — a note
+// must survive the person who wrote it leaving the business, the same reason
+// Booking.serviceSlug is not a relation.
+//
+// A note NEVER implies a status change. Auto-confirming on "spoke to patient"
+// would confirm bookings the customer had just declined. Confirming and noting
+// are separate decisions that happen to be made in the same breath, so the
+// actions take a note as a payload and write both atomically.
+model BookingNote {
+  id          String             @id @default(cuid())
+  // Cascade is required, not cosmetic: deleteSlot removes CANCELLED bookings
+  // along with the slot, and a note holding this key would block that delete
+  // at the database.
+  booking     Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId   String
+  outcome     BookingNoteOutcome @default(NOTE)
+  body        String?
+  authorEmail String?
+  authorName  String?
+  createdAt   DateTime           @default(now())
+
+  @@index([bookingId, createdAt])
+}
+
+model Booking {
+  id                      String           @id @default(cuid())
+  slot                    AvailabilitySlot @relation(fields: [slotId], references: [id])
+  slotId                  String
+  // What the customer is coming in for. Validated against
+  // config/content/services.ts at the boundary — deliberately a slug rather
+  // than a relation, since services are agency-authored config, not a table.
+  serviceSlug             String
+  customerName            String
+  // Stored lower-cased — normalised at the Zod boundary in
+  // features/booking/schema/booking.schema.ts and backfilled by migration — so
+  // customer history matches across "Jane@x.com" and "jane@x.com" using the
+  // index below rather than an ILIKE equality no index can serve.
+  customerEmail           String
+  customerPhone           String?
+  // A website booking is a REQUEST until staff confirm it by phone. The database default is the last-resort safety net for a path that
+  // forgot to say: holding a chair we did not need to hold is recoverable in
+  // one click, selling one twice is not.
+  status                  BookingStatus    @default(REQUESTED)
+  // Only set when the "payments" feature is on, the service has a
+  // depositAmount configured, and PaymentSettings.timing is UPFRONT — links
+  // this booking to the Stripe Checkout Session the webhook uses to confirm
+  // payment (see server/services/bookingService.ts::confirmBookingPayment).
+  stripeCheckoutSessionId String?          @unique
+  // Manually toggled by staff from the dashboard when PaymentSettings.timing
+  // is AFTER_SERVICE (payment collected in person / at the end of the visit,
+  // not online at booking time) — see server/services/bookingService.ts::markPaid.
+  paid                    Boolean          @default(false)
+  // When the confirmation email actually went out. Null means it has not,
+  // which is what lets Stripe's webhook retry re-attempt a send that failed —
+  // without it, a retry found the booking already CONFIRMED, sent nothing, and
+  // the customer was never told about the appointment they had paid for.
+  confirmationEmailSentAt DateTime?
+  createdAt               DateTime         @default(now())
+
+  notes    BookingNote[]
+  messages MailMessage[]
+
+  // listAvailableSlots counts capacity-holding bookings per slot on every
+  // public page load, so the composite beats the plain slotId index it
+  // replaces.
+  @@index([slotId, status])
+  @@index([serviceSlug])
+  // Customer account history is looked up by email.
+  @@index([customerEmail])
+}
+
+enum LeadStatus {
+  NEW
+  HANDLED
+}
+
+model Lead {
+  id        String     @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String
+  status    LeadStatus @default(NEW)
+  createdAt DateTime   @default(now())
+
+  /// Where on the site this lead came from, so it reaches the right lawyer
+  /// without anyone reading it first.
+  ///
+  /// Plain strings, not enums. The slug vocabulary lives in
+  /// config/content/practice-areas, which is regenerated from markdown — making
+  /// these enums would mean a migration every time a category is renamed, and
+  /// would drop the historical value on every old lead when it happened. A lead
+  /// is a record of what someone said at the time.
+  ///
+  /// Nullable because the contact form is reachable with nothing selected, and
+  /// because leads created before this migration have no answer.
+  audience         String?
+  practiceAreaSlug String?
+  /// Validated against the real content in submit-lead.ts before it is written
+  /// — a well-formed slug for a service that does not exist is discarded there.
+  serviceSlug      String?
+  jurisdiction     String?
+
+  messages MailMessage[]
+
+  @@index([createdAt])
+  // The dashboard filters by practice area; without this it is a sequential
+  // scan over every lead ever received. Composite with createdAt for the same
+  // reason as [status, createdAt] below: the list filters and then orders, and
+  // one index should serve both halves.
+  @@index([serviceSlug, createdAt])
+  // The dashboard filters by status and still orders by createdAt. With two
+  // single-column indexes Postgres picks one and then sorts or filters; the
+  // composite serves the whole query as an index scan. Same shape Review
+  // already has, and it covers [status] as a prefix so the standalone status
+  // index is redundant.
+  //
+  // Deliberately nothing for the name/email/phone search: those are
+  // `ILIKE '%term%'`, and a leading wildcard is unservable by any btree.
+  @@index([status, createdAt])
+}
+
+// Staff/admin login for the dashboard (Milestone 3). Not "customer accounts" —
+// that's a separate, optional feature-flagged concern for end customers.
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  // Rejecting used to delete the row. It now hides it, reversibly, so the
+  // client can take a published review down and put it back.
+  //
+  // A third status rather than a `hidden` boolean or a `hiddenAt` timestamp
+  // because every public read already filters `status = APPROVED` — a hidden
+  // review is excluded by a condition that exists, instead of one that every
+  // future query has to remember to add. Failure by omission is the thing to
+  // design out here: the cost of getting it wrong is a review the client
+  // deliberately took down reappearing on their homepage.
+  //
+  // Declared LAST on purpose. `ALTER TYPE … ADD VALUE` appends, so the order
+  // here must match the database's enumsortorder or a later `migrate dev`
+  // reports phantom drift.
+  HIDDEN
+}
+
+// Customer-submitted reviews (optional "reviews" feature) — distinct from the
+// curated Testimonial copy in config/content/testimonials.ts, which is
+// agency-authored and always shown regardless of this feature's flag.
+model Review {
+  id         String       @id @default(cuid())
+  authorName String
+  rating     Int
+  comment    String
+  status     ReviewStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+
+  // Approved reviews are read on every public page load and pending ones on
+  // every dashboard visit; both filter on status and sort by createdAt, which
+  // was a sequential scan of the whole table before this.
+  @@index([status, createdAt])
+}
+
+enum PaymentTiming {
+  // Deposit collected online via Stripe Checkout before the booking is
+  // confirmed (e.g. a gym charging at signup). See submit-booking.ts.
+  UPFRONT
+  // Booking confirms immediately with no online charge; payment is collected
+  // in person and staff mark it paid from the dashboard afterward (e.g. a
+  // dental office charging at the end of the visit).
+  AFTER_SERVICE
+}
+
+// Business-wide payment policy, editable by the client from
+// /dashboard/settings — NOT agency-authored config, because this is an
+// operational choice the business owner may change themselves without a
+// redeploy (unlike depositAmount, which is a pricing decision that stays in
+// config/content/services.ts). Singleton row: always id 1.
+model PaymentSettings {
+  id     Int           @id @default(1)
+  timing PaymentTiming @default(UPFRONT)
+
+  // Stripe credentials the business connects itself, rather than environment
+  // variables only the agency can set. Two reasons: a client may change Stripe
+  // accounts, and this kit is sold to other businesses who connect their own.
+  // Neither should need a redeploy.
+  //
+  // Every column here is nullable and the environment stays the fallback, so a
+  // deployment that has never opened the settings page behaves exactly as it
+  // did before this migration.
+
+  /// Ciphertext from lib/secret-box.ts. Never selected into anything that
+  /// reaches a browser — the settings page is sent a boolean saying a key
+  /// exists, not the key and not a masked prefix of it.
+  stripeSecretKey String?
+
+  /// Ciphertext, same rule. Read by the webhook route, which runs before any
+  /// session and must verify a signature before trusting the body.
+  stripeWebhookSecret String?
+
+  /// Not a secret — it is published to browsers by design — so it is stored in
+  /// the clear and may be shown back on the settings page.
+  stripePublishableKey String?
+
+  updatedAt      DateTime @default(now()) @updatedAt
+  // Denormalised, no FK to AdminUser, for the same reason BookingNote records
+  // authorship this way: it must survive the person leaving the business.
+  updatedByEmail String?
+}
+
+enum ThemePreset {
+  // Whatever this client's config/theme.config.ts says. Named generically
+  // because this enum is cloned into every client repo, where "BRAND" still
+  // means that client's own palette.
+  BRAND
+  MIDNIGHT
+  HARBOUR
+}
+
+// Site-wide presentation settings the business owner changes themselves.
+//
+// Deliberately separate from PaymentSettings rather than folded into it:
+// that row belongs to the optional "payments" feature and is meaningless in a
+// client that doesn't take deposits, whereas this one always applies. Merging
+// them would mean a payments-off client still carrying a payments table.
+//
+// Singleton row: always id 1, materialised by upsert on first read.
+model SiteSettings {
+  id             Int         @id @default(1)
+  themePreset    ThemePreset @default(BRAND)
+  // Set the first time TeamMember is populated from config/content/team.ts.
+  //
+  // Without it, "zero rows" is ambiguous between "never initialised" and "the
+  // admin deleted everyone", and the seed-on-empty rule in teamService would
+  // resurrect a roster that was deliberately cleared — a solo practitioner
+  // removing three of four people, then the fourth, would watch all four
+  // reappear on the next page load.
+  teamSeededAt   DateTime?
+  /// Contact details the business edits itself at /dashboard/settings.
+  ///
+  /// Every column is nullable and **null means "use config/site.config.ts"** —
+  /// these are overrides, not a seeded copy. Unlike TeamMember, every one of
+  /// these fields is required, so there is no ambiguous "the admin cleared it
+  /// on purpose" state and therefore no seeded-marker column is needed. Null
+  /// unambiguously means nothing has been overridden, and clearing a field is
+  /// a supported way back to the configured value.
+  ///
+  /// These feed the LocalBusiness JSON-LD as well as the page, so a stale value
+  /// here is wrong in search results too — which is most of the reason the
+  /// business rather than the agency should own them.
+  businessPhone  String?
+  businessEmail  String?
+  addressStreet  String?
+  addressCity    String?
+  addressState   String?
+  addressZip     String?
+  addressCountry String?
+  /// The seven-day week as [{ day, opens, closes }], validated against
+  /// businessHoursSchema on the way in and again on the way out.
+  ///
+  /// Json rather than fourteen nullable time columns, and rather than its own
+  /// table: it is always read and written whole and never queried into, so a
+  /// table would buy nothing and cost a join on every page load.
+  openingHours   Json?
+  // How many days ahead the Bookings page's follow-up view looks. The business
+  // owns this number — a quiet single-operator office wants five, a busy one
+  // wants two — so it is a row here rather than config needing a redeploy.
+  followUpDays   Int         @default(5)
+}
+
+// The people the business puts on its homepage.
+//
+// This is the one piece of former config/content that is database-backed, and
+// it is a deliberate exception to CLAUDE.md's "agency-authored content belongs
+// in /config" rule rather than an oversight. The distinction is the same one
+// PaymentSettings draws: a staff list changes when someone joins or leaves,
+// which is an operational fact the business owner owns, not a design decision
+// the agency makes. Services, testimonials and business info stay in config.
+//
+// Seeded from config/content/team.ts on first read, so a fresh client repo
+// renders exactly what its config says until someone edits it in the dashboard.
+model TeamMember {
+  id        String   @id @default(cuid())
+  // Derived from the name server-side, never typed by an admin. Nothing reads
+  // it but the React key today; it is kept unique so a duplicate can't produce
+  // two children with the same key, and because it is the stable public handle
+  // if per-person pages are ever added.
+  slug      String   @unique
+  name      String
+  role      String
+  bio       String
+  // Path under /public. next.config.ts sets no `images` key, so next/image
+  // accepts local paths only — a remote URL is rejected at the Zod boundary
+  // rather than throwing at render time and taking the homepage down.
+  photo     String?
+  // Explicit, contiguous, and rewritten wholesale on every save. cuid() is not
+  // sortable and createdAt is wrong the first time someone joins who belongs
+  // second in the list.
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
+/// An uploaded staff photo, stored as bytes.
+///
+/// In the database rather than on disk because the deploy target's filesystem
+/// is read-only and ephemeral — writing into /public works perfectly in local
+/// development and then silently does nothing in production, which is the
+/// worst possible failure mode for "upload a photo".
+///
+/// No object store either, deliberately: that would mean an account, keys, and
+/// a CSP that permits another origin, for a handful of staff portraits. A
+/// dozen images of a few hundred KB is nothing to Postgres. Revisit if this
+/// ever grows into a gallery — the serving route means callers would not have
+/// to change.
+///
+/// Decoupled from TeamMember rather than being columns on it, because an
+/// upload happens before the member row exists: someone adds a person, picks a
+/// photo, and only then saves. The upload returns a URL that goes into
+/// TeamMember.photo like any other path.
+model TeamPhoto {
+  id          String   @id @default(cuid())
+  /// Sniffed from the file's magic bytes, never taken from the client's
+  /// Content-Type or the filename — both are attacker-controlled, and this
+  /// value is echoed back as a response header.
+  contentType String
+  /// The image itself. Postgres bytea.
+  data        Bytes
+  byteSize    Int
+  createdAt   DateTime @default(now())
+}
+
+enum EmailProvider {
+  // Whatever the environment says — RESEND_API_KEY / RESEND_FROM_EMAIL, the
+  // only way to send before this table existed. The default, so an existing
+  // deployment behaves exactly as it did before this migration.
+  SERVER
+  RESEND
+  SMTP
+
+  // This enum is new, so its initial order is free. Anything added LATER must
+  // be declared last, for the reason BookingStatus.REQUESTED spells out:
+  // `ALTER TYPE … ADD VALUE` appends, and a mismatch with the database's
+  // enumsortorder makes a later `migrate dev` report phantom drift.
+}
+
+// How the business sends email, editable by the owner from /dashboard/settings.
+//
+// A row rather than config for the same reason PaymentSettings is one: which
+// mailbox the business sends from is an operational fact they own, and putting
+// it in config means every change is an agency redeploy. Separate from
+// SiteSettings deliberately — the root layout reads that row on every page
+// render, and no anonymous homepage view should be pulling SMTP ciphertext
+// into memory.
+//
+// Singleton row: always id 1, materialised by upsert on first read.
+model EmailSettings {
+  id       Int           @id @default(1)
+  provider EmailProvider @default(SERVER)
+
+  // Split rather than one "Name <addr>" string, unlike RESEND_FROM_EMAIL: this
+  // way the address can be validated with the same SINGLE_ADDRESS rule as any
+  // other, and the display name is separately stripped of the characters that
+  // could turn it into a second header.
+  fromName    String?
+  fromAddress String?
+  replyTo     String?
+
+  /// Ciphertext from lib/secret-box.ts. Never selected into anything that
+  /// reaches a browser — the settings page is sent a boolean, not this.
+  resendApiKey String?
+
+  smtpHost     String?
+  smtpPort     Int?
+  smtpSecure   Boolean @default(true)
+  smtpUser     String?
+  /// Ciphertext from lib/secret-box.ts. Same rule as resendApiKey.
+  smtpPassword String?
+
+  updatedAt      DateTime @updatedAt
+  // Denormalised, no FK to AdminUser, for the same reason BookingNote records
+  // authorship this way: it must survive the person leaving the business.
+  updatedByEmail String?
+}
+
+enum MailStatus {
+  SENT
+  FAILED
+  // Nothing was sent because no transport is configured. Distinct from FAILED
+  // on purpose: FAILED means we tried and the provider said no, SKIPPED means
+  // we never opened a connection. Conflating them would have the dashboard
+  // report a delivery problem to a business whose real problem is that they
+  // have not filled in the email settings yet.
+  //
+  // Added LAST, and anything further must be too — see EmailProvider.
+  SKIPPED
+}
+
+/// One email the business sent a customer or an enquirer from the dashboard.
+///
+/// Records failures as well as successes, which is why it is not called
+/// SentEmail. A shared front desk needs to see "someone already emailed them
+/// yesterday", and needs it to be true even when the send did not work.
+///
+/// ## Two nullable subjects rather than a polymorphic key
+///
+/// bookingId and leadId are real foreign keys, exactly one of which is set. A
+/// `subjectType`/`subjectId` pair would be shorter and would go stale silently.
+/// More importantly `onDelete: Cascade` is load-bearing here, for the same
+/// reason BookingNote carries it — deleteSlot removes CANCELLED bookings along
+/// with the slot, and a row holding this key would block that delete at the
+/// database. A polymorphic column gives no cascade and would leave orphans
+/// holding a customer's email address and the full text of a message about
+/// their appointment, forever. The cost is one more nullable column per subject
+/// type, which is accepted.
+///
+/// The "exactly one" part is a CHECK constraint written by hand in the
+/// migration (`num_nonnulls("bookingId", "leadId") = 1`). Prisma cannot model
+/// it, so `migrate dev`'s diff neither knows about it nor removes it — but it
+/// also will not recreate it, so a rebuilt migration must carry it forward.
+model MailMessage {
+  id String @id @default(cuid())
+
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    String?
+
+  toEmail     String
+  subject     String
+  /// Plain text exactly as it was typed and sent — never the assembled HTML.
+  /// The markup is derivable from lib/email-shell.ts; this is what a human
+  /// reads back and what a subject-access request produces.
+  body        String
+  /// Which canned template it started from, if any. Recorded for reporting;
+  /// never re-applied on send.
+  templateKey String?
+
+  status   MailStatus
+  provider EmailProvider?
+  /// A short, mapped reason — never error.message and never a stack. Provider
+  /// errors echo API-key prefixes, SMTP usernames and full recipient
+  /// addresses, and this column is rendered in the dashboard.
+  error    String?
+
+  senderEmail String?
+  senderName  String?
+  createdAt   DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([leadId, createdAt])
+  @@index([createdAt])
+}
+
+// End-customer accounts (optional "customerAccounts" feature) — a completely
+// separate credential space from AdminUser, authenticated via a second
+// Credentials provider in auth.ts (see CLAUDE.md's Auth.js v5 note). Only
+// lets a customer view their own booking history, matched by email; no
+// relation to Booking is modeled since Booking.customerEmail already exists
+// and a customer signing up after booking as a guest should still see it.
+model Customer {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+/// What the firm has changed about a practice area or service.
+///
+/// NOT a copy of the content. Names, descriptions, key features, FAQs and SEO
+/// text live only in config/content/practice-areas, generated from the two
+/// markdown files. This table holds the handful of decisions that belong to the
+/// business rather than to whoever wrote the copy: whether an area is shown at
+/// all, whether it is promoted, what order it appears in, and two short strings
+/// they may want to reword without a deploy.
+///
+/// CLAUDE.md forbids a table for agency-authored content and carves out
+/// "content the business owner changes themselves without a redeploy". This is
+/// that carve-out, built the way TeamMember already is: config is the source of
+/// truth and the fallback, the row is the exception. An empty table renders the
+/// site exactly as the config describes it.
+model PracticeAreaOverride {
+  id   String           @id @default(cuid())
+  /// Category or service slug from config/content/practice-areas.
+  ///
+  /// Unique across both kinds because service slugs are already globally unique
+  /// (asserted at module load in that config), so one namespace is enough and a
+  /// composite key would only invite a category and a service to collide.
+  slug String           @unique
+  kind PracticeAreaKind
+
+  /// Hidden items are unreachable, not merely unlisted - the route 404s and the
+  /// sitemap drops them. A "disabled" thing still served at its own URL is the
+  /// failure CLAUDE.md's feature-flag rule exists to prevent.
+  visible   Boolean @default(true)
+  featured  Boolean @default(false)
+  /// Null means "use the order from config". Rewritten wholesale on reorder,
+  /// like TeamMember.sortOrder - cuid() is not sortable and updatedAt is the
+  /// wrong answer the first time something is moved to the top.
+  sortOrder Int?
+
+  /// Null means "use the copy from config". Empty string is not a way to blank
+  /// it: the admin form deletes the row instead, so there is one representation
+  /// of "unchanged" rather than two.
+  summaryOverride String?
+  ctaOverride     String?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([kind, sortOrder])
+}
+
+enum PracticeAreaKind {
+  CATEGORY
+  SERVICE
+}

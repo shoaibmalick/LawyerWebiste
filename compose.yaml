@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: website_starter_kit
+    ports:
+      # Bound to the loopback interface, not 0.0.0.0. A bare "5432:5432"
+      # publishes this container on every interface the machine has, so a
+      # development database with the credentials above — postgres/postgres —
+      # is reachable by anyone on the same coffee-shop or office network.
+      # Nothing needs it from off-box; the app, the Prisma CLI and the tests
+      # all connect from localhost.
+      # Host port 5433, not 5432: sibling projects on this machine (the starter kit,
+      # smile-studio-dental, goldenfork) bind 5432 with `restart: unless-stopped`, so
+      # whichever started first owns it. The container port is unchanged.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+
+  # A local mail server that accepts everything and delivers nothing.
+  #
+  # Here so the email settings at /dashboard/settings can be exercised end to
+  # end without a Resend account, an SMTP password, or the risk of a test
+  # message reaching a real customer. Point the SMTP settings at
+  # localhost:1026 with TLS off and no username, then read what was "sent" at
+  # http://localhost:8026.
+  #
+  # Loopback-bound for the same reason Postgres is: an open relay on the office
+  # network is worse than an exposed development database.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      # Remapped for the same reason as Postgres above; read mail at localhost:8026.
+      - "127.0.0.1:1026:1025"
+      - "127.0.0.1:8026:8025"
+
+volumes:
+  postgres-data:

@@ -1,0 +1,89 @@
+name: CI
+
+# Both names on purpose. This workflow triggered only on `main` while the repo's
+# branch is `master`, so no push ever matched it and CI never ran once — the
+# pipeline existed, looked healthy in the file tree, and guarded nothing. A
+# template gets cloned into repos using either convention, so match both rather
+# than assume.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # lib/env.ts validates at import time and `next build` evaluates it, so the
+    # build needs these present or it fails collecting page data. That strictness
+    # is deliberate — a deploy missing its site URL should not start — but it
+    # means CI has to supply them like any other environment. These are throwaway
+    # values for a throwaway database; nothing here is a real secret.
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/website_starter_kit_test?schema=public
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      AUTH_SECRET: ci-placeholder-not-a-real-secret
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: website_starter_kit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # A control, not a snapshot. `npm audit` returning 0 was true on the day
+      # of the security review; this is what keeps it true. --audit-level=high
+      # so that a Low advisory in a dev-only transitive dependency does not
+      # block a booking fix at 5pm, while anything genuinely dangerous does.
+      #
+      # This step failing is a signal to triage, not to add --force anywhere.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - run: npm run format:check
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      # Written before the build so every later step reads the same database,
+      # and because `npm test` runs through `dotenv -e .env.test`.
+      # AUTH_SECRET is here because lib/secret-box.ts derives its encryption key
+      # from it, so the emailSettings tests cannot seal a credential without
+      # one. Any non-empty value works — nothing written in CI outlives the run.
+      - name: Create .env.test
+        run: |
+          {
+            echo 'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/website_starter_kit_test?schema=public"'
+            echo 'AUTH_SECRET="ci-auth-secret-not-used-anywhere-real"'
+            echo 'NEXT_PUBLIC_SITE_URL="http://localhost:3000"'
+          } > .env.test
+
+      # Migrations before the build, not after. The root layout reads the
+      # client's chosen theme from SiteSettings, and `next build` renders pages
+      # — so building against a database that hasn't had this migration applied
+      # meant building against a table that did not exist. The read fails soft
+      # (see features/site-settings/api/get-active-theme.ts) so it would not
+      # have broken the build, but it would have been a warning nobody looked
+      # at, on every run, forever.
+      - run: npm run test:db:setup
+
+      - run: npm run build
+
+      - run: npm run test

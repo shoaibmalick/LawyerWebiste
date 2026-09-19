@@ -1,0 +1,35 @@
+# Line endings.
+#
+# Git stores text blobs as LF, but without this file each machine's
+# core.autocrlf decides what lands in the working tree. On Windows that means
+# CRLF on disk, which (a) makes `npm run format:check` fail on every file,
+# since Prettier's default endOfLine is "lf", and (b) makes the same file look
+# 100% changed when diffed against a checkout from another platform — which
+# turns every `git merge upstream/master` review into noise.
+#
+# eol=lf pins the working tree to LF everywhere, matching CI and Prettier.
+* text=auto eol=lf
+
+# Binary assets. Never line-ending-normalize or textually diff these —
+# misdetecting one as text corrupts it.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.avif  binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.mp4   binary
+*.webm  binary
+
+# SVG is text — keep it diffable.
+*.svg   text eol=lf
+
+# Generated: collapse in GitHub diffs so it does not drown out real review.
+package-lock.json linguist-generated
