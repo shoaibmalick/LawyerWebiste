@@ -19,11 +19,14 @@ import { imageCreditsSchema } from "../schema/content.schema";
  * entry is added.
  *
  * Keep it in step with whatever renders images (config/content/team.ts, and
- * any gallery a client adds): an image added there belongs here too.
+ * any gallery a client adds): an image added there belongs here too, and one
+ * that stops rendering comes out. `classical-colonnade-night` (Mehmet Turgut
+ * Kirkgoz, Pexels) was removed when it left the hero rotation — its source is
+ * kept in `design/hero-retired/`, outside /public, so nothing serves it.
  *
- * **The three hero photographs are published darker than they were licensed.**
- * `npm run hero:grade` applies a flat per-channel multiply so all three sit at
- * one exposure; the files as downloaded are in `design/hero-source/`, outside
+ * **The hero photographs are published darker than they were licensed.**
+ * `npm run hero:grade` applies a flat per-channel multiply so they all sit at
+ * one exposure; the files as supplied are in `design/hero-source/`, outside
  * /public. That is a legitimate adjustment rather than a silent one, which is
  * why it is stated here as well as in the script: a reader who follows
  * `sourceUrl` will find a brighter frame than the one on the page, and should
@@ -32,6 +35,41 @@ import { imageCreditsSchema } from "../schema/content.schema";
  * original framing, no colour grading, no composition changes.
  */
 export const imageCredits = imageCreditsSchema.parse([
+  /*
+   * The two entries below are INCOMPLETE, and deliberately say so on the page.
+   *
+   * Both files were supplied by the client with no provenance. CLAUDE.md's
+   * onboarding checklist is explicit about what to do here: "If nobody knows
+   * yet, say so in the entry rather than writing a plausible-looking
+   * photographer and licence URL — the attribution page is the last place a
+   * reader expects to be misled." A fabricated Unsplash URL alongside three
+   * real ones would be indistinguishable from them, which is the whole risk.
+   *
+   * Both also look machine-generated, which if true changes what "creator" and
+   * "licence" even mean and is worth settling before this ships anywhere
+   * public. Replace these two entries once the client answers; until then the
+   * /credits page tells a reader exactly as much as we actually know.
+   */
+  {
+    src: "/images/hero/boardroom-scales-harbour.jpg",
+    usedFor: "Homepage hero (first frame)",
+    title: "Boardroom at dusk with a brass balance scale, overlooking Sydney Harbour",
+    creator: "Unknown — supplied by the client, provenance not yet confirmed",
+    license: "Unknown — not yet confirmed",
+    licenseUrl: "Not yet confirmed",
+    sourceUrl: "Not yet confirmed",
+    attributionRequired: false,
+  },
+  {
+    src: "/images/hero/colonnade-professionals-day.jpg",
+    usedFor: "Homepage hero (second frame)",
+    title: "Two people in business dress walking through a marble colonnade by a harbour",
+    creator: "Unknown — supplied by the client, provenance not yet confirmed",
+    license: "Unknown — not yet confirmed",
+    licenseUrl: "Not yet confirmed",
+    sourceUrl: "Not yet confirmed",
+    attributionRequired: false,
+  },
   {
     src: "/images/hero/toronto-skyline-blue-hour.jpg",
     usedFor: "Homepage hero",
@@ -53,17 +91,6 @@ export const imageCredits = imageCreditsSchema.parse([
     license: "Unsplash License",
     licenseUrl: "https://unsplash.com/license",
     sourceUrl: "https://unsplash.com/photos/landscape-photography-of-bridge--sQ4FsomXEs",
-    attributionRequired: false,
-  },
-  {
-    src: "/images/hero/classical-colonnade-night.jpg",
-    usedFor: "Homepage hero",
-    title: "Illuminated neoclassical colonnade and pediment at night",
-    creator: "Mehmet Turgut Kirkgoz",
-    license: "Pexels License",
-    licenseUrl: "https://www.pexels.com/license/",
-    sourceUrl:
-      "https://www.pexels.com/photo/ancient-building-with-bedrocks-in-lights-at-night-6357114/",
     attributionRequired: false,
   },
 ]);

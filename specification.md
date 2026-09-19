@@ -177,7 +177,7 @@ this project or transcript is ever shared.
    components in §7.2 must be added via `npx shadcn add`.
 3. `config/content/services.ts` is **appointment-shaped** (`durationMinutes` required,
    every card links to `?service=<slug>#booking` on whichever route carries the booking
-   form — `/consultation` here, see 7.15). Practice areas are pages, not slots,
+   form — `/consultation` here, see 7.17). Practice areas are pages, not slots,
    so they get their own content module (§4) and `services.ts` is repurposed narrowly
    (§4.4).
 
@@ -364,7 +364,7 @@ types** only — the things `features/booking` actually sells a time slot for:
 
 It is **not** merged with `practice-areas`. `durationMinutes` is required there and
 meaningless for a practice area, and `ServicesGrid` links every card into the booking
-form (see 7.15).
+form (see 7.17).
 Keeping them separate avoids widening a schema in the template for one client's shape —
 which `CLAUDE.md`'s template-vs-client rule forbids.
 
@@ -1180,7 +1180,114 @@ cycle at 1440 / 1280 / 1024 / 390, with all four words observed; the heading is 
 full accessible name; under `prefers-reduced-motion` the word does not change in nine seconds
 and no `[data-reveal]` is stranded; axe 0 violations; 914 tests.
 
-### 7.15 Every consultation tile pointed at an anchor this site no longer has
+### 7.15 Two daylight photographs joined a set graded for dusk
+
+The client supplied two more hero frames and asked for them first. Both arrived in
+`public/images/hero/`, which is script output — they belong in `design/hero-source/`, so they
+were moved there, renamed to the set's convention, and `npm run hero:grade` regenerated
+everything under /public.
+
+They are far brighter than anything already in the set. Copy-zone p99 as supplied:
+
+| frame                         | p99 as supplied | multiply |
+| ----------------------------- | --------------- | -------- |
+| `colonnade-professionals-day` | 0.961           | x0.443   |
+| `boardroom-scales-harbour`    | 0.917           | x0.452   |
+| `toronto-skyline-blue-hour`   | 0.345           | x0.705   |
+
+**Hitting the same p99 is not the same as having the same distribution.** Graded to the
+existing `TARGET_LUMA` of 0.20 every frame matched on paper — 0.210 to 0.224 — and the check
+still failed, eyebrow at **4.29** against its 4.5 bar over the colonnade. A frame that is bright
+nearly everywhere puts much more of its copy zone near p99 than a night shot does, so a 12px run
+lands on lit stone that the darker frames do not contain anywhere.
+
+The first fix was to grade harder — `TARGET_LUMA` 0.20 -> 0.16 — which cleared it at the cost
+of ~8% of the mean luminance on all five frames. **That was the wrong fix, and 7.16 undoes it:**
+the eyebrow was a block `<p>` spanning the full measure with its text in the left 15%, so the
+check was sampling 1270px of photograph to judge a word occupying 190 of them. Sizing that
+element to its content took it to 8.68 on its own. Check what the box actually covers before
+darkening every photograph on the site to fix one number.
+
+**Three things about this pair are unresolved, and are recorded rather than fixed:**
+
+1. **They are 1376x768**, against 2400x1350 for the existing three and the 2400x1600 minimum in
+   CLAUDE.md's onboarding checklist. The hero is full-bleed, so on any viewport wider than
+   1376px they are upscaled and will read softer than their neighbours.
+2. **`colonnade-professionals-day` is a photograph of people**, which contradicts the rule
+   stated in `site.config.ts` since the photography landed: _"A stock portrait captioned into
+   an invented firm's homepage is a claim about whoever is in it; a skyline is not."_ Two
+   people in business dress on a law firm's homepage read as that firm's lawyers, and this
+   firm does not exist.
+3. **Both show Sydney Harbour** — the Opera House and the Harbour Bridge are identifiable in
+   each — for a firm whose offices are Toronto and New York. Same category as the bank logo
+   cropped out of the Toronto panorama: a recognisable landmark behind a firm's own hero reads
+   as a claim about where it is.
+
+Provenance is unknown for both, so `config/content/image-credits.ts` says exactly that rather
+than inventing a photographer and a licence URL, per the onboarding checklist. Both also appear
+machine-generated, which if true changes what "creator" and "licence" mean and should be settled
+before any public deploy.
+
+---
+
+### 7.16 The hero was reported as too dark three times, and the blue was only half of it
+
+Three rounds of "I can't see the hero image", each measured rather than eyeballed. What the
+measurements kept showing is that the **scrim was not the binding constraint — the brass was.**
+
+Every white run in the hero clears its bar several times over: `detail` at 10.4, `value` at
+13.0, `eyebrow` at 7.4. Only the two `accent-on-ink` runs sat near theirs, and because the check
+reports the worst pair anywhere, those two were holding all four scrim layers up on their own.
+
+What actually moved, in order:
+
+1. **Layer 4 reached 78% up the frame and nothing up there needed it.** The topmost run it
+   exists to protect — the location line — ends at 32.6% of the section height. It was dimming
+   the middle 45% of every frame, which on these photographs is the window, the walkway and the
+   skyline. Pulled to `to-40%`.
+2. **`accentOnInk` lifted twice**, `#BE8A33` -> `#CE9A44` -> `#DCAC57`. At the first value the
+   proof labels needed their backdrop under 0.030 relative luminance; at the last they tolerate
+   0.049. Same hue, one step of value each time, and it only ever helps the other places brass
+   lands — all dark grounds.
+3. **Layer 3 reshaped and layer 1 removed on desktop.** A flat wash dims the right-hand half as
+   much as the left, which is the half meant to stay clear. The horizontal gradient now carries
+   the work: 82% under the copy, nothing across the right-hand eighth. Its `via` sits at 52%
+   because the `<h1>` runs to 65% of the measure; moving it to 58% proved the point in reverse,
+   raising `lead` 4.85 -> 6.06 while the boardroom's highlights fell 0.101 -> 0.076.
+4. **Every layer cut to 80%**, on request. That broke five runs, four of them brass, and was
+   paid for from the text rather than by putting the blue back: **the three 12px proof labels
+   went from brass to `ink-foreground/85`**. 12px against a 4.5 bar is the hardest text on the
+   page and brass is the tightest colour on the site; the same words in white clear 10:1 over
+   the same pixels, so the dark strip across the bottom could come off entirely. Brass stays in
+   the headline, where it was asked for.
+5. **One photograph was capping the whole set.** Measured as a ladder: with five frames 0.20
+   passes, 0.22 lands the headline's brass at 3.02 against a 3.0 bar, 0.24 fails two runs, 0.28
+   fails three. `classical-colonnade-night` failed first at every step — its lit stone columns
+   reach 0.69 while the frame averages 0.095, and a percentile cannot fix a frame whose
+   highlights are its subject. Retired to `design/hero-retired/` and dropped from
+   `image-credits.ts`, since that file lists only what actually renders. **With it gone 0.24
+   passes with wider margins than 0.20 had with it in.**
+
+Desktop, brightest 5% of hero pixels — the statistic that decides whether a photograph reads as
+present:
+
+| state                       | mean            | brightest 5%    |
+| --------------------------- | --------------- | --------------- |
+| as reported                 | 0.015-0.026     | 0.040-0.076     |
+| layer 4 pulled back         | 0.018-0.036     | 0.061-0.112     |
+| brass lifted                | 0.019-0.044     | 0.078-0.133     |
+| layer 3 reshaped            | 0.020-0.046     | 0.087-0.151     |
+| every layer x0.8            | 0.024-0.051     | 0.094-0.158     |
+| **colonnade retired, 0.24** | **0.027-0.059** | **0.123-0.187** |
+
+**About 2.9x on the highlights, at zero contrast failures throughout.** Final margins:
+`rotatingWord` 3.26/3.0, `h1` 3.94/3.0, `lead` 4.60/4.5, `label2` 5.38/4.5. Two intermediate
+states were rejected for landing a run within 0.02 of its bar — a passing number with no margin
+is not a passing design.
+
+---
+
+### 7.17 Every consultation tile pointed at an anchor this site no longer has
 
 Reported by using the page: clicking any card under **Start with a conversation** put the
 visitor back at the top of the homepage.

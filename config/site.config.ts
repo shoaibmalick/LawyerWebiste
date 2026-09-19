@@ -62,29 +62,52 @@ export const siteConfig = siteConfigSchema.parse({
     // config/schema/site.schema.ts.
     schemaType: "Attorney",
     /**
-     * Three licensed photographs, crossfading. Order matters.
+     * Four photographs, crossfading. Order matters — the first is the LCP
+     * element and the only one loaded eagerly.
      *
-     * Toronto leads: its whole upper-left quadrant is empty dusk sky, so the
-     * headline has clean air behind it, and it is the deepest navy of the three
-     * — closest to the palette. It is also the LCP element, so it is the one
-     * worth loading first.
+     * The boardroom leads at the client's request. Its upper-left quadrant is
+     * unlit ceiling, so the headline has clean air behind it, and after grading
+     * it sits at the palette's own dusk. Toronto, which used to lead for the
+     * same reason, is third.
      *
-     * Architecture, not people. A stock portrait captioned into an invented
-     * firm's homepage is a claim about whoever is in it; a skyline is not. Each
-     * file was also checked for third-party signage — the uncropped Toronto
-     * panorama carries a readable bank logo, and the frame here is cropped to
-     * exclude it, because a real company's sign on this firm's homepage reads
-     * as a claim about its premises.
+     * Every file here is output. They are graded from `design/hero-source/` by
+     * `npm run hero:grade` to a common 99th-percentile copy-zone luminance —
+     * the two newest arrived at 0.92 and 0.96 and were roughly halved to reach
+     * it. Do not hand-edit them, and re-run `npm run check:hero-contrast` after
+     * any change here: fewer or brighter frames move every text run in the hero.
      *
-     * Credited in config/content/image-credits.ts. Neither the Unsplash nor the
-     * Pexels licence legally requires visible attribution, but both are listed
-     * there anyway — `attributionRequired` marks the difference between an
-     * obligation and a courtesy.
+     * `classical-colonnade-night` was dropped from this list, and it is worth
+     * knowing why before anyone adds it back. One frame set the exposure
+     * ceiling for the whole rotation: its lit stone columns reach 0.69 while
+     * the frame averages 0.095, so it failed first at every grading target and
+     * held the other three down with it. It was also the least visible of the
+     * five once composited. Removing it let `TARGET_LUMA` go 0.20 -> 0.24, which
+     * made every remaining frame about 30% brighter *and* widened every contrast
+     * margin. Its source is in `design/hero-retired/`.
+     *
+     * Two standing rules this list is measured against, both in CLAUDE.md's
+     * onboarding checklist:
+     *
+     * - **Architecture, not people.** A stock portrait captioned into an
+     *   invented firm's homepage is a claim about whoever is in it; a skyline
+     *   is not. `colonnade-professionals-day` breaks this rule deliberately, on
+     *   the client's instruction — see image-credits.ts, where its provenance
+     *   is also still open.
+     * - **No third-party signage.** The uncropped Toronto panorama carries a
+     *   readable bank logo and is cropped to exclude it, because a real
+     *   company's sign on this firm's homepage reads as a claim about its
+     *   premises. The two newest frames carry no legible signage, but both show
+     *   Sydney Harbour — the Opera House and the Harbour Bridge are
+     *   identifiable in each — against a firm whose offices are Toronto and
+     *   New York.
+     *
+     * Credited in config/content/image-credits.ts.
      */
     heroImages: [
+      "/images/hero/boardroom-scales-harbour.jpg",
+      "/images/hero/colonnade-professionals-day.jpg",
       "/images/hero/toronto-skyline-blue-hour.jpg",
       "/images/hero/brooklyn-bridge-dusk.jpg",
-      "/images/hero/classical-colonnade-night.jpg",
     ],
     timezone: "America/Toronto",
     currency: "CAD",

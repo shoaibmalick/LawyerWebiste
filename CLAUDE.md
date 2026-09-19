@@ -36,8 +36,10 @@ in one of the two. Read it before starting any phase.
   so it is not served; the script matts the logo off its printed background and prints the
   crop it found, which is why `config/logo.test.ts` asserts the declared sizes still match
   the files. See `specification.md` 7.8 for the two decisions the matte depends on.
-- **Graded hero photography, and a contrast check that is not axe** — the three hero
-  frames are published darker than they were licensed. `npm run hero:grade`
+- **Graded hero photography, and a contrast check that is not axe** — the four hero
+  frames are published darker than they were licensed. **New photographs go in
+  `design/hero-source/`, never straight into `/public`**, and a new frame brighter than the
+  set will move the grading target for all of them — see `specification.md` 7.15. `npm run hero:grade`
   (`scripts/grade-hero-images.mjs`) reads `design/hero-source/` and multiplies each frame
   to a common 99th-percentile luminance; **never hand-edit `public/images/hero/`**, it is
   output. `npm run check:hero-contrast` (`scripts/check-hero-contrast.py`, needs
@@ -48,7 +50,8 @@ in one of the two. Read it before starting any phase.
   paragraph at 4.16:1 that had been shipping since the photography landed. Run it after
   touching the scrim, the hero copy, or the photographs — **including the copy**, because
   shorter headline text means fewer lines, which moves every run to a different part of the
-  photograph. See `specification.md` 7.11–7.14.
+  photograph. See `specification.md` 7.11–7.16 — 7.16 in particular, for why the brass and not the
+  scrim is what limits how light the hero can go.
 - **A third motion primitive** — `components/motion/rotating-word.tsx`, beside `reveal.tsx` and
   `hero-slideshow.tsx`. One word of the hero headline cycles. Two rules it shares with the other
   two: the timer never starts under `prefers-reduced-motion` (the finished state, not a faster

@@ -19,7 +19,7 @@ import { themeConfigSchema } from "./schema/theme.schema";
  *   eyebrow (primary) on paper 8.24 · linen 7.29
  *   muted body on paper 6.12 · linen 5.42 · inkMuted on ink 7.20
  *   button label on primary 8.24 · accent label on accent 5.13
- *   accentOnInk on the audience panels 4.70 · on the raw ink band 5.33
+ *   accentOnInk on the audience panels 6.82 · on the raw ink band 7.82
  *   destructive on paper 7.19 · focus ring on paper 5.07
  *
  * `accent` (#B07D2A) is 4.51 on ink — fine as an eyebrow there — but only 3.43
@@ -40,10 +40,19 @@ export const themeConfig = themeConfigSchema.parse({
     secondary: "#EFEBE4", // linen — one step below paper, for alternating bands
     secondaryForeground: "#152A40",
     accent: "#B07D2A", // brass — see the note above before using as text
-    // A lifted brass for accent text on ink. 4.70:1 on the audience panels
-    // (ink + 5% lift) and 5.33:1 on the raw band; the darker `accent` above
-    // measures 3.98:1 on those panels and fails. See theme.schema.ts.
-    accentOnInk: "#BE8A33",
+    // A lifted brass for accent text on ink. The darker `accent` above measures
+    // 3.98:1 on the audience panels and fails, which is why this exists.
+    //
+    // Lifted twice, #BE8A33 -> #CE9A44 -> #DCAC57, to buy the hero its photographs.
+    // Brass is the only colour on the site that sets a floor under the hero
+    // scrim: every other run there clears its bar with 2-7x to spare, while the
+    // proof labels and the rotating word sit within 0.2 of theirs. At #BE8A33
+    // the labels needed their backdrop under 0.030 relative luminance; at
+    // #CE9A44 they tolerate 0.049, and that difference is most of what lets the
+    // wash come off the photographs. Same hue, same muted character, one step
+    // up in value. It only ever helps the other two places brass lands, both of
+    // which are dark grounds. Do not use it on paper — see the note above.
+    accentOnInk: "#DCAC57",
     accentForeground: "#1A1206",
 
     muted: "#E6E1D8",

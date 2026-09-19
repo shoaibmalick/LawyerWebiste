@@ -34,16 +34,23 @@ type FirmHeroProps = {
  *
  * Four layers, each doing one job:
  *
- *   1. `bg-ink/22 sm:bg-ink/15` — the floor. Heavier on a phone, where the copy
- *      spans the full width and the directional layers cannot help as much.
- *   2. `bg-gradient-to-b from-ink/58 via-ink/42 to-ink/18`, **mobile only** —
+ *   1. `bg-ink/10 sm:bg-transparent` — the floor, and **on a phone only**. A flat
+ *      wash dims the right-hand half as much as the left, which is the half that
+ *      is supposed to stay clear, so desktop carries none at all.
+ *   2. `bg-gradient-to-b from-ink/66 via-ink/34 to-ink/8`, **mobile only** —
  *      vertical, because on a phone the copy runs from the top of the frame
- *      rather than down its left-hand side.
- *   3. `bg-gradient-to-r from-ink/78 via-ink/48 to-transparent`, **`sm` and up**
- *      — density behind the left-aligned copy, gone by the right-hand edge where
- *      the skyline is. This is the layer that lets the photograph be a
- *      photograph.
- *   4. `bg-gradient-to-t from-ink via-ink/82 to-transparent`, stopping at 78% —
+ *      rather than down its left-hand side. The dense top is set by one run:
+ *      the brass rotating word in the `<h1>`.
+ *   3. `bg-gradient-to-r from-ink/82 via-ink/34 via-52% to-transparent to-88%`,
+ *      **`sm` and up** — the one that does the work. 82% under the copy, a third
+ *      of that by mid-frame, nothing at all across the right-hand eighth. The
+ *      `via` sits at 52% rather than at the edge deliberately: the `<h1>` runs to
+ *      65% of the measure, so a gradient that has already collapsed by 40% puts
+ *      the end of the headline over bare photograph. Moving it out to 58% proved
+ *      the point in reverse — `lead` rose 4.85 -> 6.06 but the boardroom's
+ *      brightest 5% fell 0.101 -> 0.076, because that frame's window is
+ *      mid-frame. 52% is where both are acceptable.
+ *   4. `bg-gradient-to-t from-ink via-ink/86 via-20% to-transparent to-40%` —
  *      the base. Deliberately the densest of the four, and deliberately short:
  *      the proof row and the location line sit across the full width down there,
  *      including over the right-hand side that layer 3 leaves clear, and the
@@ -51,6 +58,47 @@ type FirmHeroProps = {
  *      labels are the tightest text on the site — `accent-on-ink` needs its
  *      backdrop under 0.026 relative luminance to clear 4.5:1 — and this is
  *      what buys that.
+ *
+ * ## Layer 4 reached 78% up the frame, and nothing up there needed it
+ *
+ * The photograph was reported as invisible behind the wash, and this layer was
+ * most of why. Measured as a percentage of the section height, the topmost run
+ * it exists to protect — the location line — ends at **32.6%**. It was fading
+ * to transparent at **78%**, so it was dimming the middle 45% of every frame,
+ * which on these photographs is the window, the walkway and the skyline: the
+ * part anyone actually looks at. Pulling it to `to-48%` (a 15-point margin over
+ * the location line) and steepening the low end to `via-ink/92 via-20%` keeps
+ * every brass label exactly where it was and hands the middle of the frame back.
+ *
+ * ## What actually set the floor was the brass, not the blue
+ *
+ * Reported twice as still too dark, and the second time the scrim was no longer
+ * the thing to cut. Every white run in this section clears its bar several times
+ * over — `detail` at 10.1, `value` at 11.7, `eyebrow` at 7.0. Only the two
+ * `accent-on-ink` runs sat near theirs, and because the check reports the worst
+ * pair anywhere, those two were holding every layer up on their own.
+ *
+ * So `accentOnInk` was lifted a step, #BE8A33 -> #CE9A44 (config/theme.config.ts).
+ * At the old value the proof labels needed their backdrop under 0.030 relative
+ * luminance; at the new one they tolerate 0.049. That single change is what paid
+ * for all four layers coming down together.
+ *
+ * Measured across the four rounds, desktop, mean / brightest 5%:
+ *
+ *   start            0.015-0.026  /  0.040-0.076
+ *   layer 4 pulled   0.018-0.036  /  0.061-0.112
+ *   brass lifted     0.019-0.044  /  0.078-0.133
+ *   layer 3 reshaped 0.020-0.046  /  0.087-0.151
+ *
+ * The highlights are where the eye reads a photograph as present or absent, and
+ * they are **roughly twice** what they were. Mobile gains less on purpose: the
+ * copy spans the full width there, so layer 2 cannot get out of the way the way
+ * layer 3 can.
+ *
+ * Final margins: `rotatingWord` 3.14/3.0, `h1` 4.15/3.0, `label2` 4.92/4.5,
+ * `lead` 5.34/4.5. The thinnest are still brass, so that is where any further
+ * request for a lighter hero has to be paid from. Re-run the check after
+ * touching any of it.
  *
  * ## How this was verified, because the obvious way is wrong
  *
@@ -157,13 +205,13 @@ export function FirmHero({ business }: FirmHeroProps) {
             sizes="100vw"
             className="absolute inset-0 -z-10 h-full w-full"
           />
-          <div className="bg-ink/22 sm:bg-ink/15 absolute inset-0 -z-10" />
+          <div className="bg-ink/8 absolute inset-0 -z-10 sm:bg-transparent" />
           {/*
             Two directions, one per layout, because the copy is a different
             shape in each.
           */}
-          <div className="from-ink/58 via-ink/42 to-ink/18 absolute inset-0 -z-10 bg-gradient-to-b sm:hidden" />
-          <div className="from-ink/78 via-ink/48 absolute inset-0 -z-10 hidden bg-gradient-to-r via-55% to-transparent to-95% sm:block" />
+          <div className="from-ink/53 via-ink/27 to-ink/6 absolute inset-0 -z-10 bg-gradient-to-b sm:hidden" />
+          <div className="from-ink/66 via-ink/27 absolute inset-0 -z-10 hidden bg-gradient-to-r via-52% to-transparent to-88% sm:block" />
           {/*
             `via-ink/60`, raised from 40.
 
@@ -174,7 +222,7 @@ export function FirmHero({ business }: FirmHeroProps) {
             composite, the brass labels came back at 4.46 and 4.23 against a
             4.5 bar. This is the layer that covers that band.
           */}
-          <div className="from-ink via-ink/87 absolute inset-0 -z-10 bg-gradient-to-t via-32% to-transparent to-78%" />
+          <div className="from-ink/80 via-ink/69 absolute inset-0 -z-10 bg-gradient-to-t via-20% to-transparent to-40%" />
         </>
       )}
 
@@ -191,7 +239,14 @@ export function FirmHero({ business }: FirmHeroProps) {
             // own Reveal and it silently stopped measuring two of them.
             data-hero-run="eyebrow"
             className={cn(
-              "text-xs font-semibold tracking-[0.14em] uppercase",
+              // w-fit is load-bearing, not cosmetic. As a block <p> this spans
+              // the full measure while its text occupies the left ~15%, so the
+              // contrast check sampled the lightest pixel across 1270px of
+              // photograph to judge a word sitting in the first 190 of them —
+              // out past where the horizontal scrim has already faded to
+              // nothing. It reported 4.29 for text that was never at risk.
+              // Sized to its content, the box is the ink.
+              "w-fit text-xs font-semibold tracking-[0.14em] uppercase",
               hasImages ? "text-ink-foreground/90" : "text-primary",
             )}
           >
@@ -288,8 +343,13 @@ export function FirmHero({ business }: FirmHeroProps) {
           <p
             data-hero-run="location"
             className={cn(
-              "mt-8 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm",
-              hasImages ? "text-ink-foreground/80" : "text-muted-foreground",
+              // w-fit for the same reason as the eyebrow above; fit-content
+              // still caps at the available width, so it wraps on a phone.
+              "mt-8 flex w-fit flex-wrap items-center gap-x-2 gap-y-1 text-sm",
+              // Full strength, not /80: at 80% it measured 4.16 against a 4.5
+              // bar once the scrim came down. The text was the cheaper thing
+              // to change.
+              hasImages ? "text-ink-foreground" : "text-muted-foreground",
             )}
           >
             <MapPin aria-hidden className="size-4 shrink-0" />
@@ -333,10 +393,19 @@ export function FirmHero({ business }: FirmHeroProps) {
                   // wrap, so without it the three numbers sat on three
                   // different baselines on a phone.
                   "min-h-[2.1rem] text-xs font-semibold tracking-[0.14em] uppercase sm:min-h-0",
-                  // `accent-on-ink`, not `accent`: the plain brass clears 4.5:1
-                  // on the raw band by 0.01, which is no margin once a scrim
-                  // over a photograph moves the ground around under it.
-                  hasImages ? "text-accent-on-ink" : "text-primary",
+                  // White over a photograph, brass only on the flat band.
+                  //
+                  // These three were `accent-on-ink` everywhere, and they were
+                  // what held the scrim up. 12px against a 4.5 bar is the
+                  // hardest text on the page, and brass is the site's tightest
+                  // colour — the pair needed its backdrop under 0.049 relative
+                  // luminance, which is a dark strip across the full width of
+                  // the frame. The same words in `ink-foreground` clear 10:1
+                  // over the same pixels, so the strip can come off entirely.
+                  // Brass stays where it is legible and where it was asked for:
+                  // the rotating word in the headline, and every non-photo band
+                  // on the site.
+                  hasImages ? "text-ink-foreground/85" : "text-primary",
                 )}
               >
                 {item.label}

@@ -68,8 +68,54 @@ const OUT = path.join(ROOT, "public", "images", "hero");
  *
  * p99 rather than the maximum, because a handful of blown pixels would drag the
  * whole frame into the dark to fix a speck. The scrim covers the remainder.
+ *
+ * ## It went to 0.16 for one run, and came back
+ *
+ * Kept here because the reasoning is still live. Two daylight frames were added
+ * (see below), the eyebrow failed at 4.29, and grading the whole set to 0.16
+ * fixed it — at the cost of ~8% of the mean luminance on all five. The eyebrow
+ * turned out not to be the problem: as a block `<p>` it spanned the full measure
+ * while its text sat in the left 15%, so the check was sampling 1270px of
+ * photograph to judge a word occupying 190 of them. `w-fit` on that element
+ * (components/blocks/firm-hero.tsx) took it to 8.68 on its own, and the target
+ * went back to 0.20. **Check what the box actually covers before darkening every
+ * photograph on the site to fix one number.**
+ *
+ * ## Why 0.20 and not lower
+ *
+ * 0.20 was right for three night and dusk frames. Two daylight frames were then
+ * added — a sunlit colonnade at p99 **0.961** and a boardroom at **0.917** — and
+ * the check failed on the eyebrow at **4.29** against a 4.5 bar, over the
+ * colonnade. Hitting the same p99 is not the same as having the same
+ * distribution: a frame that is bright nearly everywhere puts far more of its
+ * copy zone near p99 than a night shot does, so a 12px run lands on a lit patch
+ * that the darker frames simply do not have.
+ *
+ * ## 0.24, and the frame that was capping it
+ *
+ * Asked again for a brighter hero, the ladder was measured rather than guessed.
+ * With five frames: 0.20 passes, 0.22 passes but lands the headline's brass at
+ * 3.02 against a 3.0 bar, 0.24 fails two runs, 0.28 fails three. The same frame
+ * failed first at every step — `classical-colonnade-night`, whose lit stone
+ * columns reach 0.69 while the frame averages 0.095.
+ *
+ * A percentile cannot fix that one: its highlights *are* its subject, so grading
+ * it to match the set means crushing the thing worth looking at, and it was the
+ * least visible of the five once composited anyway. Retired to
+ * `design/hero-retired/`. With it gone 0.24 passes with **wider** margins than
+ * 0.20 had with it in (`rotatingWord` 3.26 vs 3.20), and every remaining frame
+ * is about 30% brighter.
+ *
+ * The lesson generalises: when one photograph is failing first at every setting,
+ * the question is whether it belongs in the set, not what the constant should be.
+ *
+ * The set therefore stays at 0.24, which is as bright as the brass will allow.
+ * The binding runs are both `accent-on-ink`: the rotating word in the headline
+ * at 3.20 against a 3.0 bar, and the third proof label at 4.66 against 4.5.
+ * Raising this constant moves both, so re-run `npm run check:hero-contrast`
+ * before keeping any increase.
  */
-const TARGET_LUMA = 0.2;
+const TARGET_LUMA = 0.24;
 
 /** sRGB gamma. The multiply happens in sRGB, so solving for it uses this. */
 const GAMMA = 2.2;
