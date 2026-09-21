@@ -67,7 +67,7 @@ describe("bookingCardHref", () => {
    * `/consultation`. The anchor resolved against a page that no longer carried
    * it, so each card loaded the homepage and stopped — silently, because a
    * missing anchor target is not an error anyone reports. See specification.md
-   * 7.17; config/nav.test.ts pins the route the homepage actually passes.
+   * 7.18; config/nav.test.ts pins the route the homepage actually passes.
    */
 
   it("carries both the query the form reads and the anchor that reaches it", () => {

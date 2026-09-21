@@ -84,6 +84,34 @@ describe("demo safeguards", () => {
     ).not.toThrow();
   });
 
+  it("publishes no listing at all while any fact is provisional", () => {
+    /*
+     * The contract app/layout.tsx now renders against.
+     *
+     * The guard used to be enforced only by `buildLocalBusinessSchema` throwing,
+     * which is correct and made the site undeployable: the call sits in the root
+     * layout, so a real hostname took out all 76 routes rather than one <script>
+     * tag. The layout gates on this array instead, and nothing false is
+     * published either way.
+     *
+     * This asserts the gate is closed *today* — that the demo is still flying
+     * the provisional flag. Emptying the array is the deliberate act that
+     * publishes the listing, so if this test fails, check that
+     * config/site.config.ts was filled in with a real firm's details in the same
+     * commit rather than just being cleared.
+     */
+    expect(PROVISIONAL_BUSINESS_FACTS.length).toBeGreaterThan(0);
+  });
+
+  it("would publish the listing once the facts are real", () => {
+    // The other half: the gate is the array, not a permanent off switch. An
+    // empty list on a public deploy builds the schema rather than throwing, so
+    // filling in a real firm is all it takes.
+    asPublicProductionDeploy();
+
+    expect(() => buildLocalBusinessSchema(siteConfig, PUBLIC_URL, [])).not.toThrow();
+  });
+
   it("lists every invented business fact that reaches the JSON-LD", () => {
     // A field added to site.config.ts and forgotten here is the failure mode
     // this catches: it would publish silently.

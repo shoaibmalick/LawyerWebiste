@@ -177,7 +177,7 @@ this project or transcript is ever shared.
    components in §7.2 must be added via `npx shadcn add`.
 3. `config/content/services.ts` is **appointment-shaped** (`durationMinutes` required,
    every card links to `?service=<slug>#booking` on whichever route carries the booking
-   form — `/consultation` here, see 7.17). Practice areas are pages, not slots,
+   form — `/consultation` here, see 7.18). Practice areas are pages, not slots,
    so they get their own content module (§4) and `services.ts` is repurposed narrowly
    (§4.4).
 
@@ -364,7 +364,7 @@ types** only — the things `features/booking` actually sells a time slot for:
 
 It is **not** merged with `practice-areas`. `durationMinutes` is required there and
 meaningless for a practice area, and `ServicesGrid` links every card into the booking
-form (see 7.17).
+form (see 7.18).
 Keeping them separate avoids widening a schema in the template for one client's shape —
 which `CLAUDE.md`'s template-vs-client rule forbids.
 
@@ -1287,7 +1287,34 @@ is not a passing design.
 
 ---
 
-### 7.17 Every consultation tile pointed at an anchor this site no longer has
+### 7.17 The demo safeguard made the demo undeployable
+
+`PROVISIONAL_BUSINESS_FACTS` exists so a public deploy cannot publish an invented `Attorney`
+listing to search engines (1.3). It enforced that by having `buildLocalBusinessSchema` throw
+whenever `isPublicDeploy()` was true — `NODE_ENV=production` and a non-localhost
+`NEXT_PUBLIC_SITE_URL`, which is precisely the state of any Vercel build.
+
+That call sits in **the root layout**. So the guard did not block one `<script>` tag, it took
+out all 76 routes: the site could not be deployed anywhere real, including a private,
+robots-disallowed preview for the client to look at.
+
+The fix is to gate the block rather than throw through it. `app/layout.tsx` renders the listing
+only while `PROVISIONAL_BUSINESS_FACTS` is empty, so nothing false is published and the rest of
+the site gets to exist at a real URL with correct canonicals, sitemap and OG tags.
+
+**This narrows the safeguard; it does not remove it.** The guard is still armed and still wired
+to the same list — fill in a real firm and empty the array and the listing appears; claim the
+facts are real while one invention remains and `buildLocalBusinessSchema` throws exactly as
+before. Two tests in `config/site.config.test.ts` hold both halves: that the gate is closed
+today, and that an empty list on a public deploy builds the schema rather than throwing.
+
+The general shape is worth keeping: **a safeguard that fails the whole application is a
+safeguard someone eventually deletes.** Refusing to publish the false thing is the goal;
+refusing to publish anything was a blunt proxy for it.
+
+---
+
+### 7.18 Every consultation tile pointed at an anchor this site no longer has
 
 Reported by using the page: clicking any card under **Start with a conversation** put the
 visitor back at the top of the homepage.

@@ -125,28 +125,44 @@ export default async function RootLayout({
         {/* Tells search engines this is a real business at a real address with
             real hours, rather than leaving them to infer it from prose. Built
             from the same config the page renders, so the two cannot disagree. */}
-        <script
-          type="application/ld+json"
-          // Serialised through serialiseJsonLd, which escapes "<" so a config
-          // value can never close this tag early.
-          dangerouslySetInnerHTML={{
-            // A merged config: `business` carries any edits the owner made at
-            // /dashboard/settings, which must win over the committed defaults.
-            //
-            // PROVISIONAL_BUSINESS_FACTS is the third argument because this firm
-            // is fictional. On a real public deploy the guard throws rather than
-            // publishing an invented Attorney listing to search engines; in
-            // development and on localhost it renders and carries on. See
-            // specification.md 1.3.
-            __html: serialiseJsonLd(
-              buildLocalBusinessSchema(
-                { ...siteConfig, business },
-                siteUrl,
-                PROVISIONAL_BUSINESS_FACTS,
+        {/*
+          No `Attorney` listing while the firm's facts are invented.
+
+          The guard behind `PROVISIONAL_BUSINESS_FACTS` exists to stop a fake
+          business reaching search engines, and it enforced that by throwing on
+          any public deploy. Correct, and it made the site undeployable: the call
+          sits in the root layout, so a real hostname took out all 76 routes
+          rather than one `<script>` tag.
+
+          Not emitting the block reaches the guard's actual goal instead of its
+          blunt version — nothing false is published, and the rest of the site
+          gets to exist at a real URL with correct canonicals, sitemap and OG
+          tags. The guard is still armed and still wired to the same list: fill
+          in real details and empty the array, and the listing appears; leave one
+          invented fact behind while claiming they are real, and
+          `buildLocalBusinessSchema` throws exactly as before.
+
+          So this is a narrower safeguard, not a removed one. See
+          specification.md 1.3 and 7.18.
+        */}
+        {PROVISIONAL_BUSINESS_FACTS.length === 0 && (
+          <script
+            type="application/ld+json"
+            // Serialised through serialiseJsonLd, which escapes "<" so a config
+            // value can never close this tag early.
+            dangerouslySetInnerHTML={{
+              // A merged config: `business` carries any edits the owner made at
+              // /dashboard/settings, which must win over the committed defaults.
+              __html: serialiseJsonLd(
+                buildLocalBusinessSchema(
+                  { ...siteConfig, business },
+                  siteUrl,
+                  PROVISIONAL_BUSINESS_FACTS,
+                ),
               ),
-            ),
-          }}
-        />
+            }}
+          />
+        )}
         <SiteHeader
           business={business}
           nav={siteConfig.nav}
