@@ -54,3 +54,6 @@ prompts/
 
 # Local dev server log
 dev.log
+
+.vercel
+.env*

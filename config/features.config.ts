@@ -19,10 +19,16 @@ import { featuresConfigSchema } from "./schema/features.schema";
  * - `practiceAreasCms` — ON. The firm can hide, promote, reorder and reword its
  *   own practice areas without a deploy. Config stays the source of truth; the
  *   table holds only what the owner changed.
- * - `aiChatbot` — ON. It answers from config content, and the 144 FAQs the
- *   practice-area files carry are exactly the corpus it is good at. Fails soft
- *   to a "call us" message when ANTHROPIC_API_KEY is unset, which is its state
- *   in this repo.
+ * - `aiChatbot` — OFF, and only because there is no key. It answers from config
+ *   content, and the 144 FAQs the practice-area files carry are exactly the
+ *   corpus it is good at. With ANTHROPIC_API_KEY unset it fails soft to a "call
+ *   us" message — correct behaviour, and the wrong thing to show a visitor: a
+ *   launcher on every page that opens and cannot answer reads as broken rather
+ *   than as unconfigured, which matters while this demo is being shown to
+ *   prospective clients. Turning the flag off hides the launcher *and* closes
+ *   `POST /api/chatbot`, so the feature is unreachable rather than merely
+ *   invisible. To re-enable: set ANTHROPIC_API_KEY and flip this back to true —
+ *   nothing else was removed.
  */
 export const featuresConfig = featuresConfigSchema.parse({
   booking: true,
@@ -30,6 +36,6 @@ export const featuresConfig = featuresConfigSchema.parse({
   reviews: false,
   payments: false,
   customerAccounts: false,
-  aiChatbot: true,
+  aiChatbot: false,
   practiceAreasCms: true,
 });
