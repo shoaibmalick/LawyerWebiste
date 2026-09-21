@@ -56,6 +56,16 @@ export const siteConfig = siteConfigSchema.parse({
     description:
       "Harbourline Law Group is a cross-border firm advising businesses and individuals on both sides of the Canada-US border. Corporate, intellectual property, employment, real estate, privacy and litigation matters for companies; injury, family, estate, criminal, property and immigration matters for individuals — handled as one file from Toronto and New York.",
     phone: "(416) 555-0148",
+    /**
+     * The WhatsApp line, shown in the mobile action bar.
+     *
+     * This is the firm's own invented number, so the link opens a chat with a
+     * number that does not exist — the same class of provisional fact as the
+     * address and the phone, and listed in PROVISIONAL_BUSINESS_FACTS below for
+     * the same reason. Replace it with a real number and the button starts
+     * working; there is nothing else to change.
+     */
+    whatsapp: "(416) 555-0148",
     email: "hello@harbourline.example",
     // "Attorney" rather than the generic LocalBusiness: the specific subtypes
     // earn richer treatment in local search. Already an allowed value in
@@ -162,6 +172,34 @@ export const siteConfig = siteConfigSchema.parse({
 });
 
 /**
+ * `business.whatsapp` as a wa.me link, or null when it cannot be one.
+ *
+ * Here rather than in `lib/`, and that is deliberate: `lib/` is shared,
+ * non-diverging code, and a link format for one client's contact preference is
+ * not a behavioural rule the next client inherits.
+ *
+ * wa.me wants digits only, with a country code and no punctuation — a `+`, a
+ * space or a bracket produces a page that says the number is invalid rather
+ * than an error anyone sees at build time. North American numbers are ten
+ * digits and the country code is 1, so both shapes are accepted and normalised.
+ *
+ * **An unexpected shape returns null rather than a guess.** The column then
+ * drops out of the bar, which is the honest failure: a link that opens a chat
+ * with the wrong person is worse than no link, and "no WhatsApp button" is
+ * visible to whoever configured it in a way that a silently-wrong number is not.
+ */
+export const whatsappUrl: string | null = (() => {
+  const raw = siteConfig.business.whatsapp;
+  if (!raw) return null;
+
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `https://wa.me/1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `https://wa.me/${digits}`;
+
+  return null;
+})();
+
+/**
  * The invented facts, named so the structured-data layer can refuse to publish
  * them.
  *
@@ -182,6 +220,7 @@ export const PROVISIONAL_BUSINESS_FACTS: string[] = [
   // undefined slipping in would silently match nothing.
   siteConfig.business.legalName,
   siteConfig.business.phone,
+  siteConfig.business.whatsapp,
   siteConfig.business.email,
   siteConfig.business.address.street,
   siteConfig.business.address.zip,

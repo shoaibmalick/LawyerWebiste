@@ -1368,6 +1368,53 @@ that consultation preselected and the form in view; `?service=` naming something
 renders the page with the dropdown unset; the grid's **See available times** footer button is
 unaffected.
 
+### 7.19 A thumb bar for the half of visitors who arrive on a phone
+
+Ported from the MegaCity Driving School build's `MobileActionBar`, which the client asked for
+by name. **Call · WhatsApp · Directions · Book**, fixed to the bottom edge, `sm:hidden`.
+
+Four columns rather than the reference's five. Its fifth is "Packages" — the thing you buy —
+and this firm has no equivalent single page: practice areas fork into `/business` and
+`/individuals`, so any one link there is wrong for half the visitors. Four also gives each cell
+97px at 390px instead of 78px, which is what lets the label sit under an icon rather than
+beside it.
+
+It earns its place on the sixty practice-area pages more than on the homepage. Those are what a
+search engine drops somebody onto, and before this they carried no call to action above the
+footer.
+
+**Four details that look cosmetic and are not:**
+
+1. **`pb-[env(safe-area-inset-bottom)]` on the bar.** Without it the bar sits under the home
+   indicator on a modern iPhone and eats its own taps — visible, reachable, and simply does
+   not fire.
+2. **The body's padding is computed, not `pb-14`.** 3.5rem is the row height, not the bar:
+   there is a 1px `border-t` above and the safe-area inset below. Measured at 390px, `pb-14`
+   left the footer's last pixel under the border, and would have left ~35px of it under the bar
+   on a real iPhone. It is
+   `pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] sm:pb-0`.
+3. **`min-h-14` per cell** — 56px, above the 44px in CLAUDE.md's touch-target note. Measured
+   98x56 at 390px.
+4. **`scripts/check-hero-contrast.py` hides it before sampling.** The bar is `bg-background/95`
+   across the whole bottom edge, and the checker takes the _lightest_ pixel in each text box.
+   Left in, it hands back a value that is not the photograph at all — the same trap the chat
+   launcher set, at roughly forty times the area. Verified: all 14 runs unchanged, 0 failures.
+
+`business.whatsapp` is a new optional field, kept separate from `phone` because a firm often
+publishes a switchboard and answers WhatsApp on a mobile. `whatsappUrl` in `site.config.ts`
+derives the `wa.me` link and **returns null rather than guessing** at a shape it cannot place a
+country code on; the column then drops and the grid closes to three. A link that opens a chat
+with the wrong person is worse than no link, and an absent button is visible to whoever
+configured it in a way that a silently-wrong number is not. `config/whatsapp.test.ts` covers
+the shapes, because every failure here is silent: wa.me does not error, it serves a page saying
+the number is invalid — to the visitor, on their phone, after they have decided to make contact.
+
+**The configured number is the firm's invented one**, so the button currently opens a chat with
+a number that does not exist. It is listed in `PROVISIONAL_BUSINESS_FACTS` alongside the phone
+and the address for exactly that reason. One line in `site.config.ts` makes it real.
+
+---
+
 ## 9. Security
 
 Non-negotiable, inherited from `SECURITY_REVIEW.md` and `CLAUDE.md`:

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { Geist, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { Chatbot } from "@/components/blocks/chatbot";
+import { MobileActionBar } from "@/components/blocks/mobile-action-bar";
 import { SiteFooter } from "@/components/blocks/site-footer";
 import { SiteHeader } from "@/components/blocks/site-header";
 import type { MenuSection } from "@/components/blocks/practice-area-menu";
@@ -121,7 +122,20 @@ export default async function RootLayout({
         } as CSSProperties
       }
     >
-      <body className="flex min-h-full flex-col">
+      {/*
+        Pays for MobileActionBar, which is `fixed` and so out of flow. Without it
+        the bar covers the last rows of the footer on a phone — the legal links
+        and the demo disclaimer among them.
+
+        Computed rather than the `pb-14` the reference build uses, because 3.5rem
+        is the row height and not the bar: there is a 1px `border-t` above it,
+        and `env(safe-area-inset-bottom)` below it, which is ~34px of home
+        indicator on a modern iPhone and 0 everywhere else. `pb-14` left the
+        footer's last pixel under the border in a headless check and would have
+        left ~35px of it under the bar on the device most likely to see this.
+        Keyed to the same `sm` breakpoint that hides the bar.
+      */}
+      <body className="flex min-h-full flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] sm:pb-0">
         {/* Tells search engines this is a real business at a real address with
             real hours, rather than leaving them to infer it from prose. Built
             from the same config the page renders, so the two cannot disagree. */}
@@ -186,6 +200,7 @@ export default async function RootLayout({
         />
         {children}
         <SiteFooter business={business} hasFloatingAction={isFeatureEnabled("aiChatbot")} />
+        <MobileActionBar business={business} />
         <Chatbot />
       </body>
     </html>

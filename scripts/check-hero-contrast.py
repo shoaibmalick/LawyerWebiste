@@ -27,9 +27,10 @@ Re-run it after changing the scrim, the hero copy, or the photographs.
    run 0..1.** Parsing those with a number regex reads 0.93 as 0.93/255 and
    reports ~1.0:1 for text that is perfectly legible. The browser composites the
    colour over the sampled pixel through a 1x1 canvas instead.
-3. **The chat launcher floats over the hero's bottom-right corner on a phone**,
-   and its white glyph is not a backdrop. It reported the third statistic at
-   1.08:1 against paper. It is hidden for the capture.
+3. **Fixed furniture over the hero is not a backdrop.** The chat launcher floats
+   over the bottom-right corner on a phone and its white glyph reported the third
+   statistic at 1.08:1 against paper; `MobileActionBar` is a near-white band
+   across the whole bottom edge. Both are hidden for the capture.
 
 ## It reports what the scrim costs, as well as what it buys
 
@@ -135,6 +136,13 @@ HIDE_TEXT = """() => {
     .querySelectorAll('p,h1,dt,dd,a').forEach((el) => { el.style.visibility = 'hidden'; });
   const chat = document.querySelector('button[aria-label="Chat with us"]');
   if (chat) chat.style.visibility = 'hidden';
+  // Same reason as the chat launcher, and a larger surface: MobileActionBar is
+  // fixed to the bottom of the viewport on phones, over whatever the hero has
+  // down there. Its background is `bg-background/95` — near-white — so leaving
+  // it in hands the "lightest pixel in the box" sampler a value that is not the
+  // photograph at all.
+  const bar = document.querySelector('nav[aria-label="Quick actions"]');
+  if (bar) bar.closest('div').style.visibility = 'hidden';
 }"""
 
 # Trap 2: let the browser composite, rather than parsing a colour string.

@@ -116,6 +116,19 @@ export const siteConfigSchema = z.object({
     tagline: z.string().min(1),
     description: z.string().min(1),
     phone: z.string().min(1),
+    /**
+     * The number that receives WhatsApp messages, if the firm takes them.
+     *
+     * Separate from `phone` because they are often not the same line — a firm
+     * may publish a switchboard and answer WhatsApp on a mobile. Stored as a
+     * plain number in whatever shape reads well; `whatsappUrl` in
+     * config/site.config.ts derives the `wa.me` link, and returns null rather
+     * than guessing when it cannot parse one.
+     *
+     * Optional: omitted, `MobileActionBar` drops the column instead of
+     * publishing a link that opens a chat with nobody.
+     */
+    whatsapp: z.string().min(1).optional(),
     email: z.email(),
     address: z.object({
       street: z.string().min(1),
