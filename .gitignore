@@ -55,5 +55,9 @@ prompts/
 # Local dev server log
 dev.log
 
+# Added by `vercel link`. Its own `.env*` line is dropped: .gitignore already
+# has one above, followed by the `!.env.example` negations — and a second,
+# later `.env*` overrides those. The example files survived only because they
+# were already tracked; a delete-and-re-add would have been silently ignored,
+# and CLAUDE.md's onboarding checklist depends on `.env.example` existing.
 .vercel
-.env*
